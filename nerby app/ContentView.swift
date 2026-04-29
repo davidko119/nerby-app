@@ -174,13 +174,18 @@ final class AppState: ObservableObject {
 }
 
 enum NerbyTheme {
-    static let background = Color(red: 0.965, green: 0.972, blue: 0.972)
+    static let background = Color(red: 0.965, green: 0.965, blue: 0.949)
+    static let secondaryBackground = Color(red: 0.937, green: 0.937, blue: 0.918)
     static let surface = Color.white
-    static let ink = Color(red: 0.09, green: 0.12, blue: 0.13)
-    static let muted = Color(red: 0.42, green: 0.47, blue: 0.48)
-    static let line = Color(red: 0.88, green: 0.90, blue: 0.90)
-    static let accent = Color(red: 0.04, green: 0.48, blue: 0.43)
-    static let warm = Color(red: 0.94, green: 0.62, blue: 0.22)
+    static let ink = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let muted = Color(red: 0.42, green: 0.42, blue: 0.435)
+    static let line = Color(red: 0.89, green: 0.89, blue: 0.878)
+    static let accent = Color(red: 0.043, green: 0.478, blue: 0.459)
+    static let accentPressed = Color(red: 0.027, green: 0.369, blue: 0.353)
+    static let success = Color(red: 0.18, green: 0.545, blue: 0.341)
+    static let warm = Color(red: 0.773, green: 0.541, blue: 0.11)
+    static let radius: CGFloat = 18
+    static let compactRadius: CGFloat = 12
 }
 
 struct RootView: View {
@@ -368,7 +373,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
+                VStack(spacing: 22) {
                     HomeHeader()
 
                     Picker("Režim", selection: $state.mode) {
@@ -377,6 +382,7 @@ struct HomeView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .controlSize(.large)
 
                     if state.mode == .seeker {
                         SeekerHome(showingRequest: $showingRequest)
@@ -384,10 +390,12 @@ struct HomeView: View {
                         ProviderHome()
                     }
                 }
-                .padding(18)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
             }
             .background(NerbyTheme.background)
             .navigationTitle("Nerby")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { } label: {
@@ -408,19 +416,39 @@ struct SeekerHome: View {
     @Binding var showingRequest: Bool
 
     var body: some View {
-        VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Aký problém potrebuješ vyriešiť?")
-                    .font(.title3.weight(.bold))
-                TextField("Napr. tečie mi sifón, nejde Wi-Fi...", text: $state.problemText, axis: .vertical)
-                    .lineLimit(2...4)
-                    .padding(14)
-                    .background(NerbyTheme.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        VStack(spacing: 22) {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Čo dnes potrebuješ vyriešiť?")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(NerbyTheme.ink)
+                    Text("Popíš problém jednou vetou. Nerby nájde relevantných ľudí nablízku.")
+                        .font(.subheadline)
+                        .foregroundStyle(NerbyTheme.muted)
+                }
+
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "sparkle.magnifyingglass")
+                        .font(.title3)
+                        .foregroundStyle(NerbyTheme.accent)
+                        .frame(width: 34, height: 34)
+                        .background(NerbyTheme.accent.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    TextField("Napr. tečie mi sifón, nejde Wi‑Fi...", text: $state.problemText, axis: .vertical)
+                        .font(.body)
+                        .lineLimit(2...4)
+                }
+                .padding(14)
+                .background(NerbyTheme.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous)
+                        .stroke(NerbyTheme.line, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous))
 
                 categoryGrid
 
-                Toggle(isOn: $state.urgent) {
+                HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Urgentné")
                             .font(.subheadline.weight(.semibold))
@@ -428,8 +456,12 @@ struct SeekerHome: View {
                             .font(.caption)
                             .foregroundStyle(NerbyTheme.muted)
                     }
+                    Spacer()
+                    Toggle("Urgentné", isOn: $state.urgent)
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: NerbyTheme.warm))
                 }
-                .toggleStyle(SwitchToggleStyle(tint: NerbyTheme.warm))
+                .padding(.vertical, 2)
 
                 Button {
                     showingRequest = true
@@ -438,9 +470,9 @@ struct SeekerHome: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
             }
-            .sectionCard()
+            .premiumSurface()
 
-            SectionTitle(title: "Odporúčaní provideri", action: "Filtrovať")
+            SectionTitle(title: "Odporúčaní provideri", subtitle: "Podľa vzdialenosti, dostupnosti a reputácie", action: "Filtrovať")
             ForEach(state.providers) { provider in
                 NavigationLink {
                     ProviderDetailView(provider: provider)
@@ -453,26 +485,28 @@ struct SeekerHome: View {
     }
 
     private var categoryGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
             ForEach(ServiceCategory.allCases) { category in
                 Button {
                     state.selectedCategory = category
                 } label: {
-                    VStack(spacing: 8) {
+                    HStack(spacing: 7) {
                         Image(systemName: category.icon)
-                            .font(.title3)
+                            .font(.subheadline.weight(.semibold))
                         Text(category.rawValue)
-                            .font(.caption.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 72)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
                     .foregroundStyle(state.selectedCategory == category ? .white : NerbyTheme.ink)
-                    .background(state.selectedCategory == category ? NerbyTheme.accent : NerbyTheme.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(state.selectedCategory == category ? NerbyTheme.accent : NerbyTheme.secondaryBackground)
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+            }
             }
         }
     }
@@ -482,12 +516,12 @@ struct ProviderHome: View {
     @EnvironmentObject private var state: AppState
 
     var body: some View {
-        VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 22) {
+            VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(state.available ? "Si dostupný" : "Si offline")
-                            .font(.title2.weight(.bold))
+                            .font(.title2.weight(.semibold))
                         Text(state.available ? "Ľudia v okruhu 5 km ťa môžu osloviť." : "Profil je skrytý pre nové dopyty.")
                             .font(.subheadline)
                             .foregroundStyle(NerbyTheme.muted)
@@ -504,9 +538,9 @@ struct ProviderHome: View {
                     StatPill(value: "5 min", label: "reakcia")
                 }
             }
-            .sectionCard()
+            .premiumSurface()
 
-            SectionTitle(title: "Nové dopyty v okolí", action: "Mapa")
+            SectionTitle(title: "Nové dopyty v okolí", subtitle: "Rýchlo posúď vzdialenosť, prioritu a typ problému", action: "Mapa")
             ForEach(state.nearbyRequests) { request in
                 RequestCard(request: request)
             }
@@ -679,10 +713,20 @@ struct MapViewScreen: View {
                 MapMockView()
                     .ignoresSafeArea(edges: .top)
 
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
+                    Capsule()
+                        .fill(NerbyTheme.line)
+                        .frame(width: 38, height: 5)
+                        .padding(.top, 2)
+
                     HStack {
-                        Label("Bratislava - okolie", systemImage: "location.fill")
-                            .font(.subheadline.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Bratislava - okolie")
+                                .font(.headline)
+                            Text("3 provideri v dosahu")
+                                .font(.caption)
+                                .foregroundStyle(NerbyTheme.muted)
+                        }
                         Spacer()
                         Button { } label: {
                             Image(systemName: "slider.horizontal.3")
@@ -704,9 +748,10 @@ struct MapViewScreen: View {
                         .padding(.horizontal, 2)
                     }
                 }
-                .padding(16)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(18)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .shadow(color: .black.opacity(0.08), radius: 22, y: 10)
                 .padding(16)
             }
             .navigationTitle("Mapa")
@@ -720,21 +765,32 @@ struct MessagesView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            ScrollView {
+                VStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Konverzácie")
+                            .font(.largeTitle.weight(.bold))
+                        Text("Dohody, fotky a príchody na stretnutie máš pokope.")
+                            .font(.subheadline)
+                            .foregroundStyle(NerbyTheme.muted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 10)
+
                     ForEach(state.chats) { chat in
                         NavigationLink {
                             ChatDetailView(chat: chat)
                         } label: {
                             ChatRow(chat: chat)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
+                .padding(20)
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
             .background(NerbyTheme.background)
             .navigationTitle("Správy")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
@@ -745,8 +801,14 @@ struct ChatDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            ChatTrustHeader(chat: chat)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    Text("Dnes")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NerbyTheme.muted)
+                        .frame(maxWidth: .infinity)
                     ChatBubble(text: "Ahoj, vidím tvoj dopyt. Vieš poslať fotku problému?", incoming: true)
                     ChatBubble(text: "Áno, posielam. Potrebujem to vyriešiť dnes.", incoming: false)
                     ChatBubble(text: chat.preview, incoming: true)
@@ -759,13 +821,18 @@ struct ChatDetailView: View {
                     .buttonStyle(IconButtonStyle())
                 TextField("Správa", text: $message)
                     .padding(12)
-                    .background(NerbyTheme.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(NerbyTheme.secondaryBackground)
+                    .clipShape(Capsule())
                 Button { message = "" } label: { Image(systemName: "arrow.up") }
                     .buttonStyle(IconButtonStyle(filled: true))
             }
             .padding(12)
             .background(NerbyTheme.surface)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(NerbyTheme.line)
+                    .frame(height: 1)
+            }
         }
         .background(NerbyTheme.background)
         .navigationTitle(chat.name)
@@ -785,24 +852,29 @@ struct ActivityView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Dnešný priebeh")
-                            .font(.title2.weight(.bold))
+                            .font(.largeTitle.weight(.bold))
                         Text("Sleduj dopyty, stretnutia a hodnotenia na jednom mieste.")
+                            .font(.subheadline)
                             .foregroundStyle(NerbyTheme.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .sectionCard()
+                    .padding(.bottom, 4)
 
-                    ForEach(state.activities) { item in
-                        ActivityRow(item: item)
+                    VStack(spacing: 0) {
+                        ForEach(Array(state.activities.enumerated()), id: \.element.id) { index, item in
+                            ActivityTimelineRow(item: item, isLast: index == state.activities.count - 1)
+                        }
                     }
+                    .premiumSurface(padding: 0)
                 }
-                .padding(18)
+                .padding(20)
             }
             .background(NerbyTheme.background)
             .navigationTitle("Aktivita")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
@@ -813,17 +885,26 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    VStack(spacing: 12) {
-                        AvatarView(name: "Dávid", size: 84)
-                        Text("Dávid S.")
-                            .font(.title2.weight(.bold))
+                VStack(spacing: 20) {
+                    VStack(spacing: 14) {
+                        AvatarView(name: "Dávid", size: 88)
+                        VStack(spacing: 4) {
+                            Text("Dávid S.")
+                                .font(.title2.weight(.semibold))
+                            Text("Nerby účet · Bratislava")
+                                .font(.subheadline)
+                                .foregroundStyle(NerbyTheme.muted)
+                        }
                         Text(state.mode.title)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(NerbyTheme.accent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(NerbyTheme.accent.opacity(0.10))
+                            .clipShape(Capsule())
                     }
                     .frame(maxWidth: .infinity)
-                    .sectionCard()
+                    .premiumSurface()
 
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Rola")
@@ -834,8 +915,9 @@ struct ProfileView: View {
                             }
                         }
                         .pickerStyle(.segmented)
+                        .controlSize(.large)
                     }
-                    .sectionCard()
+                    .premiumSurface()
 
                     VStack(spacing: 0) {
                         SettingsRow(icon: "bell", title: "Notifikácie", value: "Zapnuté")
@@ -846,7 +928,7 @@ struct ProfileView: View {
                         Divider()
                         SettingsRow(icon: "globe", title: "Jazyk", value: "Slovenčina")
                     }
-                    .sectionCard(padding: 0)
+                    .premiumSurface(padding: 0)
 
                     if state.mode == .provider {
                         ProviderSettingsCard()
@@ -860,24 +942,26 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.bordered)
                 }
-                .padding(18)
+                .padding(20)
             }
             .background(NerbyTheme.background)
             .navigationTitle("Profil")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
 
 struct HomeHeader: View {
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Dnes v okolí")
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(NerbyTheme.muted)
-                Text("Nájdi riešenie rýchlo")
-                    .font(.title2.weight(.bold))
+                Text("Nájdi spoľahlivú pomoc nablízku")
+                    .font(.largeTitle.weight(.bold))
                     .foregroundStyle(NerbyTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             AvatarView(name: "Dávid", size: 44)
@@ -890,9 +974,9 @@ struct ProviderCard: View {
     let provider: Provider
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                AvatarView(name: provider.name, size: 52)
+        VStack(alignment: .leading, spacing: 15) {
+            HStack(alignment: .top, spacing: 13) {
+                AvatarView(name: provider.name, size: 54)
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
                         Text(provider.name)
@@ -911,10 +995,12 @@ struct ProviderCard: View {
                 AvailabilityBadge(online: provider.online)
             }
 
-            HStack(spacing: 10) {
-                TagLabel(icon: provider.category.icon, text: provider.category.rawValue)
-                TagLabel(icon: "location", text: provider.distance)
-                TagLabel(icon: "star.fill", text: provider.rating)
+            HStack(spacing: 12) {
+                MetricLabel(title: provider.distance, subtitle: "od teba")
+                Divider().frame(height: 28)
+                MetricLabel(title: provider.rating, subtitle: "\(provider.reviewCount) recenzií")
+                Divider().frame(height: 28)
+                MetricLabel(title: provider.price, subtitle: "orientačne")
             }
 
             HStack {
@@ -922,12 +1008,10 @@ struct ProviderCard: View {
                     .font(.caption)
                     .foregroundStyle(NerbyTheme.muted)
                 Spacer()
-                Text(provider.price)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(NerbyTheme.ink)
+                TagLabel(icon: provider.category.icon, text: provider.category.rawValue)
             }
         }
-        .sectionCard()
+        .premiumSurface()
     }
 }
 
@@ -955,7 +1039,11 @@ struct MiniProviderCard: View {
         .frame(width: 180, alignment: .leading)
         .padding(14)
         .background(NerbyTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous)
+                .stroke(NerbyTheme.line, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous))
     }
 }
 
@@ -990,7 +1078,7 @@ struct RequestCard: View {
                     .foregroundStyle(request.priority == "Urgentné" ? NerbyTheme.warm : NerbyTheme.muted)
             }
         }
-        .sectionCard()
+        .premiumSurface()
     }
 }
 
@@ -1008,7 +1096,7 @@ struct ProviderEditorPreview: View {
                 TagLabel(icon: "eye", text: "len online")
             }
         }
-        .sectionCard()
+        .premiumSurface()
     }
 }
 
@@ -1032,7 +1120,7 @@ struct ProviderSettingsCard: View {
             Toggle("Ukazovať profil len keď som online", isOn: $state.showOnlyWhenOnline)
                 .toggleStyle(SwitchToggleStyle(tint: NerbyTheme.accent))
         }
-        .sectionCard()
+        .premiumSurface()
     }
 }
 
@@ -1040,12 +1128,19 @@ struct MapMockView: View {
     var body: some View {
         ZStack {
             NerbyTheme.background
-            GridPattern()
-                .stroke(NerbyTheme.line, lineWidth: 1)
-                .opacity(0.8)
+            SoftMapPattern()
+                .stroke(NerbyTheme.line.opacity(0.7), lineWidth: 1)
+            Path { path in
+                path.move(to: CGPoint(x: 20, y: 160))
+                path.addCurve(to: CGPoint(x: 360, y: 210), control1: CGPoint(x: 120, y: 90), control2: CGPoint(x: 250, y: 285))
+                path.move(to: CGPoint(x: 45, y: 420))
+                path.addCurve(to: CGPoint(x: 370, y: 330), control1: CGPoint(x: 160, y: 360), control2: CGPoint(x: 240, y: 390))
+            }
+            .stroke(NerbyTheme.secondaryBackground, style: StrokeStyle(lineWidth: 18, lineCap: .round))
             Circle()
-                .stroke(NerbyTheme.accent.opacity(0.18), lineWidth: 36)
-                .frame(width: 250, height: 250)
+                .fill(NerbyTheme.accent.opacity(0.08))
+                .frame(width: 260, height: 260)
+                .blur(radius: 0.5)
             Circle()
                 .fill(NerbyTheme.accent)
                 .frame(width: 18, height: 18)
@@ -1061,10 +1156,10 @@ struct MapMockView: View {
     }
 }
 
-struct GridPattern: Shape {
+struct SoftMapPattern: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let step: CGFloat = 54
+        let step: CGFloat = 84
         var x: CGFloat = 0
         while x <= rect.width {
             path.move(to: CGPoint(x: x, y: 0))
@@ -1087,9 +1182,13 @@ struct MapPin: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            Image(systemName: online ? "mappin.circle.fill" : "mappin.circle")
-                .font(.system(size: 34))
-                .foregroundStyle(online ? NerbyTheme.accent : NerbyTheme.warm)
+            Image(systemName: "mappin")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(online ? NerbyTheme.accent : NerbyTheme.warm)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.10), radius: 10, y: 5)
             Text(label)
                 .font(.caption2.weight(.bold))
                 .padding(.horizontal, 8)
@@ -1106,7 +1205,7 @@ struct ChatRow: View {
     var body: some View {
         HStack(spacing: 12) {
             AvatarView(name: chat.name, size: 48)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Text(chat.name)
                         .font(.headline)
@@ -1129,7 +1228,42 @@ struct ChatRow: View {
                     .frame(width: 9, height: 9)
             }
         }
-        .padding(.vertical, 6)
+        .premiumSurface(padding: 14)
+    }
+}
+
+struct ChatTrustHeader: View {
+    let chat: ChatThread
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AvatarView(name: chat.name, size: 42)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(chat.name)
+                    .font(.headline)
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.caption)
+                        .foregroundStyle(NerbyTheme.accent)
+                    Text("Overený provider · \(chat.status)")
+                        .font(.caption)
+                        .foregroundStyle(NerbyTheme.muted)
+                }
+            }
+            Spacer()
+            Button { } label: {
+                Image(systemName: "phone.fill")
+            }
+            .buttonStyle(IconButtonStyle())
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(NerbyTheme.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(NerbyTheme.line)
+                .frame(height: 1)
+        }
     }
 }
 
@@ -1173,6 +1307,47 @@ struct ActivityRow: View {
                 .foregroundStyle(NerbyTheme.accent)
         }
         .sectionCard()
+    }
+}
+
+struct ActivityTimelineRow: View {
+    let item: ActivityItem
+    let isLast: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 13) {
+            VStack(spacing: 0) {
+                Image(systemName: item.icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(NerbyTheme.accent)
+                    .clipShape(Circle())
+                if !isLast {
+                    Rectangle()
+                        .fill(NerbyTheme.line)
+                        .frame(width: 1, height: 52)
+                }
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(item.title)
+                        .font(.headline)
+                    Spacer()
+                    Text(item.status)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(NerbyTheme.accent)
+                }
+                Text(item.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(NerbyTheme.muted)
+                    .lineLimit(2)
+            }
+            .padding(.bottom, isLast ? 0 : 20)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, isLast ? 16 : 0)
     }
 }
 
@@ -1259,17 +1434,26 @@ struct CleanTextField: View {
 
 struct SectionTitle: View {
     let title: String
+    let subtitle: String?
     let action: String?
 
-    init(title: String, action: String? = nil) {
+    init(title: String, subtitle: String? = nil, action: String? = nil) {
         self.title = title
+        self.subtitle = subtitle
         self.action = action
     }
 
     var body: some View {
-        HStack {
-            Text(title)
-                .font(.headline)
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(NerbyTheme.muted)
+                }
+            }
             Spacer()
             if let action {
                 Button(action) { }
@@ -1277,6 +1461,25 @@ struct SectionTitle: View {
                     .foregroundStyle(NerbyTheme.accent)
             }
         }
+    }
+}
+
+struct MetricLabel: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(NerbyTheme.ink)
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(NerbyTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1290,7 +1493,7 @@ struct DetailSection<Content: View>: View {
                 .font(.headline)
             content
         }
-        .sectionCard()
+        .premiumSurface()
     }
 }
 
@@ -1372,8 +1575,8 @@ struct StatPill: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(NerbyTheme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(NerbyTheme.secondaryBackground)
+        .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.compactRadius, style: .continuous))
     }
 }
 
@@ -1418,7 +1621,7 @@ struct AvatarView: View {
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(
-                LinearGradient(colors: [NerbyTheme.accent, Color(red: 0.15, green: 0.33, blue: 0.58)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                LinearGradient(colors: [NerbyTheme.accent, NerbyTheme.accentPressed], startPoint: .topLeading, endPoint: .bottomTrailing)
             )
             .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
     }
@@ -1436,7 +1639,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .frame(height: 52)
             .foregroundStyle(.white)
-            .background(NerbyTheme.accent.opacity(configuration.isPressed ? 0.75 : 1))
+            .background(configuration.isPressed ? NerbyTheme.accentPressed : NerbyTheme.accent)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
@@ -1455,13 +1658,28 @@ struct IconButtonStyle: ButtonStyle {
 }
 
 extension View {
+    func premiumSurface(padding: CGFloat = 16) -> some View {
+        self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NerbyTheme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous)
+                    .stroke(NerbyTheme.line, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous))
+    }
+
     func sectionCard(padding: CGFloat = 16) -> some View {
         self
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(NerbyTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: .black.opacity(0.035), radius: 12, y: 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous)
+                    .stroke(NerbyTheme.line, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.radius, style: .continuous))
     }
 }
 
