@@ -54,6 +54,7 @@ enum ServiceCategory: String, CaseIterable, Identifiable {
 struct Provider: Identifiable {
     let id = UUID()
     let name: String
+    let imageName: String
     let category: ServiceCategory
     let headline: String
     let bio: String
@@ -109,6 +110,7 @@ final class AppState: ObservableObject {
     let providers: [Provider] = [
         .init(
             name: "Marek Kováč",
+            imageName: "profile-marek",
             category: .repairs,
             headline: "Hodinový majster a rýchle opravy",
             bio: "Pomáham s drobnými opravami v byte, montážou nábytku, batériami, dverami a urgentnými poruchami. Prídem s vlastným náradím.",
@@ -124,6 +126,7 @@ final class AppState: ObservableObject {
         ),
         .init(
             name: "Lucia Poláková",
+            imageName: "profile-lucia",
             category: .it,
             headline: "IT pomoc pre Mac, iPhone a Wi-Fi",
             bio: "Riešim pomalé notebooky, nastavenie Wi-Fi, zálohy, tlačiarne a prenos dát. Vysvetľujem jednoducho a bez stresu.",
@@ -139,6 +142,7 @@ final class AppState: ObservableObject {
         ),
         .init(
             name: "Tomáš Varga",
+            imageName: "profile-tomas",
             category: .auto,
             headline: "Auto pomoc v okolí",
             bio: "Pomôžem s defektom, batériou, výmenou žiaroviek a základnou diagnostikou. Dostupný najmä poobede a večer.",
@@ -415,42 +419,228 @@ struct SeekerHome: View {
     @EnvironmentObject private var state: AppState
     @Binding var showingRequest: Bool
 
-    var body: some View {
-        VStack(spacing: 22) {
-            NavigationLink {
-                SearchResultsView()
-            } label: {
-                MinimalSearchBar(text: state.problemText.isEmpty ? "Čo potrebuješ vyriešiť?" : state.problemText)
-            }
-            .buttonStyle(.plain)
+    private var onlineProviders: [Provider] {
+        state.providers.filter(\.online)
+    }
 
-            VStack(alignment: .leading, spacing: 18) {
-                SectionTitle(title: "Prehľad", subtitle: "Rýchly stav okolia a tvojho dopytu")
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    DashboardTile(value: "3", label: "ľudia nablízku", icon: "person.2")
-                    DashboardTile(value: "650 m", label: "najbližší", icon: "location")
-                    DashboardTile(value: "4 min", label: "rýchla odpoveď", icon: "clock")
-                    DashboardTile(value: state.urgent ? "Áno" : "Nie", label: "urgentné", icon: "bolt")
+    var body: some View {
+        VStack(spacing: 18) {
+            SeekerActionPanel(showingRequest: $showingRequest)
+
+            ActiveRequestCard()
+
+            VStack(alignment: .leading, spacing: 14) {
+                SectionTitle(title: "Najbližšia pomoc", subtitle: "Overení ľudia, ktorých vieš osloviť hneď")
+                ForEach(onlineProviders.prefix(2)) { provider in
+                    NavigationLink {
+                        ProviderDetailView(provider: provider)
+                    } label: {
+                        NearbyProviderRow(provider: provider)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .premiumSurface()
 
             VStack(alignment: .leading, spacing: 14) {
-                SectionTitle(title: "Čo sa deje teraz")
-                HomeStatusRow(icon: "checkmark.circle", title: "V okolí sú dostupní provideri", subtitle: "Marek a Lucia sú online")
-                Divider()
-                HomeStatusRow(icon: "message", title: "Môžeš začať cez správu", subtitle: "Najprv pošli popis alebo fotku problému")
-                Divider()
-                HomeStatusRow(icon: "arrow.triangle.turn.up.right.diamond", title: "Stretnutie je cieľ", subtitle: "Po dohode ťa appka navedie na miesto")
+                SectionTitle(title: "Rýchly stav", subtitle: "To najdôležitejšie pre rozhodnutie")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    DashboardTile(value: "\(state.providers.count)", label: "profily v dosahu", icon: "person.2")
+                    DashboardTile(value: onlineProviders.first?.distance ?? "-", label: "najbližší online", icon: "location")
+                    DashboardTile(value: onlineProviders.first?.responseTime.replacingOccurrences(of: "odpoveď do ", with: "") ?? "-", label: "očak. odpoveď", icon: "clock")
+                    DashboardTile(value: state.urgent ? "Dnes" : "Flexi", label: "priorita dopytu", icon: "bolt")
+                }
+                HStack(spacing: 10) {
+                    DashboardChip(icon: "shield.checkered", text: "Overené profily")
+                    DashboardChip(icon: "location.fill", text: "Do 5 km")
+                }
             }
             .premiumSurface()
 
-            Button {
-                showingRequest = true
-            } label: {
-                Label("Vytvoriť dopyt", systemImage: "plus")
+            VStack(alignment: .leading, spacing: 14) {
+                SectionTitle(title: "Pred stretnutím")
+                HomeStatusRow(icon: "photo", title: "Pridaj fotku problému", subtitle: "Provider rýchlejšie odhadne cenu aj náradie")
+                Divider()
+                HomeStatusRow(icon: "eurosign.circle", title: "Dohodni cenu vopred", subtitle: "V správe si potvrď rozsah a približnú sumu")
+                Divider()
+                HomeStatusRow(icon: "mappin.and.ellipse", title: "Zdieľaj miesto až po dohode", subtitle: "Presnú adresu pošli len vybranému providerovi")
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .premiumSurface()
+        }
+    }
+}
+
+struct SeekerActionPanel: View {
+    @EnvironmentObject private var state: AppState
+    @Binding var showingRequest: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Čo potrebuješ vyriešiť?")
+                    .font(.title2.weight(.bold))
+                Text("Zadaj problém, pozri najbližších ľudí a dohodni cenu ešte pred stretnutím.")
+                    .font(.subheadline)
+                    .foregroundStyle(NerbyTheme.muted)
+                    .lineSpacing(3)
+            }
+
+            NavigationLink {
+                SearchResultsView()
+            } label: {
+                MinimalSearchBar(text: state.problemText.isEmpty ? "Oprava, Wi-Fi, auto..." : state.problemText)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 10) {
+                Button {
+                    showingRequest = true
+                } label: {
+                    Label("Nový dopyt", systemImage: "plus")
+                }
+                .buttonStyle(PrimaryButtonStyle())
+
+                NavigationLink {
+                    MapViewScreen()
+                } label: {
+                    Image(systemName: "map")
+                        .frame(width: 52, height: 52)
+                }
+                .foregroundStyle(NerbyTheme.accent)
+                .background(NerbyTheme.secondaryBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .accessibilityLabel("Otvoriť mapu")
+            }
+        }
+        .premiumSurface()
+    }
+}
+
+struct ActiveRequestCard: View {
+    @EnvironmentObject private var state: AppState
+
+    private var activeTitle: String {
+        state.problemText.isEmpty ? "Tečie sifón pod umývadlom" : state.problemText
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "paperplane.fill")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(width: 38, height: 38)
+                    .background(NerbyTheme.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Aktívny dopyt")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(NerbyTheme.muted)
+                    Text(activeTitle)
+                        .font(.headline)
+                        .lineLimit(2)
+                    Text("Marek odpovedal teraz, Lucia je online. Vyber človeka alebo doplň fotku.")
+                        .font(.subheadline)
+                        .foregroundStyle(NerbyTheme.muted)
+                        .lineLimit(3)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                TagLabel(icon: state.selectedCategory.icon, text: state.selectedCategory.rawValue)
+                TagLabel(icon: "clock", text: state.urgent ? "urgentné" : "dnes")
+                Spacer(minLength: 0)
+                Button("Správy") { }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NerbyTheme.accent)
+            }
+        }
+        .premiumSurface()
+    }
+}
+
+struct NearbyProviderRow: View {
+    let provider: Provider
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProviderPhotoView(name: provider.name, imageName: provider.imageName, size: 54)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(provider.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    if provider.verified {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.caption)
+                            .foregroundStyle(NerbyTheme.accent)
+                    }
+                }
+                Text(provider.headline)
+                    .font(.caption)
+                    .foregroundStyle(NerbyTheme.muted)
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Label(provider.distance, systemImage: "location")
+                    Label(provider.rating, systemImage: "star.fill")
+                    Text(provider.price)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(NerbyTheme.muted)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(NerbyTheme.muted)
+        }
+        .padding(12)
+        .background(NerbyTheme.secondaryBackground)
+        .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.compactRadius, style: .continuous))
+    }
+}
+
+struct DashboardChip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: icon)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(NerbyTheme.ink)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(NerbyTheme.secondaryBackground)
+            .clipShape(RoundedRectangle(cornerRadius: NerbyTheme.compactRadius, style: .continuous))
+    }
+}
+
+struct ProviderTaskRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let action: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(NerbyTheme.accent)
+                .frame(width: 34, height: 34)
+                .background(NerbyTheme.secondaryBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(NerbyTheme.muted)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button(action) { }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(NerbyTheme.accent)
         }
     }
 }
@@ -540,6 +730,14 @@ struct ProviderHome: View {
             }
             .premiumSurface()
 
+            VStack(alignment: .leading, spacing: 14) {
+                SectionTitle(title: "Dnes treba riešiť", subtitle: "Najkratšia cesta k zákazke")
+                ProviderTaskRow(icon: "bolt", title: "Urgentný dopyt 700 m", detail: "Tečie sifón, zákazník chce pomoc dnes", action: "Odpovedať")
+                Divider()
+                ProviderTaskRow(icon: "calendar.badge.clock", title: "Potvrď príchod", detail: "Marek Kováč -> 18:20 v správe čaká na potvrdenie", action: "Potvrdiť")
+            }
+            .premiumSurface()
+
             SectionTitle(title: "Nové dopyty v okolí", subtitle: "Rýchlo posúď vzdialenosť, prioritu a typ problému", action: "Mapa")
             ForEach(state.nearbyRequests) { request in
                 RequestCard(request: request)
@@ -558,7 +756,7 @@ struct ProviderDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(alignment: .top, spacing: 14) {
-                        AvatarView(name: provider.name, size: 72)
+                        AvatarView(name: provider.name, imageName: provider.imageName, size: 72)
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 6) {
                                 Text(provider.name)
@@ -1047,7 +1245,7 @@ struct ProviderCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            ProviderPhotoView(name: provider.name, size: 78)
+            ProviderPhotoView(name: provider.name, imageName: provider.imageName, size: 78)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -1095,7 +1293,7 @@ struct MiniProviderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                ProviderPhotoView(name: provider.name, size: 42)
+                ProviderPhotoView(name: provider.name, imageName: provider.imageName, size: 42)
                 AvailabilityBadge(online: provider.online)
             }
             Text(provider.name)
@@ -1685,38 +1883,48 @@ struct TagLabel: View {
     }
 }
 
-struct ProviderPhotoView: View {
+enum ProfileAssets {
+    static func imageName(for name: String) -> String? {
+        switch name {
+        case "Marek Kováč": return "profile-marek"
+        case "Lucia Poláková": return "profile-lucia"
+        case "Tomáš Varga": return "profile-tomas"
+        case "Dávid", "Dávid S.": return "profile-david"
+        default: return nil
+        }
+    }
+}
+
+struct ProfileImageView: View {
     let name: String
+    let imageName: String?
     let size: CGFloat
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.13, green: 0.13, blue: 0.13), Color(red: 0.55, green: 0.55, blue: 0.55)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            Image(systemName: "person.crop.square.fill")
-                .font(.system(size: size * 0.42, weight: .regular))
-                .foregroundStyle(.white.opacity(0.9))
-            Text(initials)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.55))
-                .clipShape(Capsule())
-                .padding(6)
+        ZStack {
+            if let resolvedImageName {
+                Image(resolvedImageName)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Text(initials)
+                    .font(.system(size: size * 0.34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(NerbyTheme.ink)
+            }
         }
         .frame(width: size, height: size)
+        .clipShape(Circle())
         .overlay(
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+            Circle()
                 .stroke(NerbyTheme.line, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .contentShape(Circle())
+    }
+
+    private var resolvedImageName: String? {
+        imageName ?? ProfileAssets.imageName(for: name)
     }
 
     private var initials: String {
@@ -1725,17 +1933,37 @@ struct ProviderPhotoView: View {
     }
 }
 
-struct AvatarView: View {
+struct ProviderPhotoView: View {
     let name: String
+    var imageName: String? = nil
     let size: CGFloat
 
     var body: some View {
+        ProfileImageView(name: name, imageName: imageName, size: size)
+    }
+}
+
+struct AvatarView: View {
+    let name: String
+    var imageName: String? = nil
+    let size: CGFloat
+
+    var body: some View {
+        ProfileImageView(name: name, imageName: imageName, size: size)
+    }
+}
+
+struct LegacyInitialsBadge: View {
+    let name: String
+
+    var body: some View {
         Text(initials)
-            .font(.system(size: size * 0.34, weight: .bold, design: .rounded))
+            .font(.caption2.weight(.bold))
             .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(NerbyTheme.ink)
-            .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(.black.opacity(0.55))
+            .clipShape(Capsule())
     }
 
     private var initials: String {
